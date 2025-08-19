@@ -1,0 +1,4 @@
+[workspace]
+members = [
+    "code_manager_api"
+]
