@@ -1,23 +1,28 @@
 use std::{sync::Arc, sync::OnceLock};
 use clorinde::deadpool_postgres::Pool;
 
-use crate::services::auth::{jwt_auth::JwtAuth, login_service::{ILoginService, LoginService}, refresh_token_creator::{IRefreshTokenCreator, RefreshTokenCreator}, registration_service::{IRegistrationService, RegistrationService}, user_creator::{IUserCreator, UserCreator}, user_email_getter::{IUserEmailGetter, UserEmailGetter}};
+use crate::services::auth::{jwt_auth::JwtAuth, login_service::{ILoginService, LoginService}, refresh_token_creator::{IRefreshTokenCreator, RefreshTokenCreator}, refresh_token_service::{IRefreshTokenService, RefreshTokenService}, registration_service::{IRegistrationService, RegistrationService}, user_creator::{IUserCreator, UserCreator}, user_email_getter::{IUserEmailGetter, UserEmailGetter}};
 use crate::services::ticket::ticket_creation_service::{ITicketCreationService, TicketCreationService};
 use crate::services::ticket::ticket_retrieval_service::{ITicketRetrievalService, TicketRetrievalService};
 use crate::services::ticket::ticket_board_service::{ITicketBoardService, TicketBoardService};
 use crate::services::ticket::ticket_editing_service::{ITicketEditingService, TicketEditingService};
+use crate::services::ticket::ticket_moving_service::{ITicketMovingService, TicketMovingService};
+use crate::services::board::board_service::{IBoardService, BoardService};
 
 pub struct Scope {
     container: Container,
     login_service: OnceLock<Arc<dyn ILoginService>>,
     user_email_getter: OnceLock<Arc<dyn IUserEmailGetter>>,
     refresh_token_creator: OnceLock<Arc<dyn IRefreshTokenCreator>>,
+    refresh_token_service: OnceLock<Arc<dyn IRefreshTokenService>>,
     registration_service: OnceLock<Arc<dyn IRegistrationService>>,
     user_creator: OnceLock<Arc<dyn IUserCreator>>,
     ticket_service: OnceLock<Arc<dyn ITicketCreationService>>,
     ticket_retrieval_service: OnceLock<Arc<dyn ITicketRetrievalService>>,
     ticket_board_service: OnceLock<Arc<dyn ITicketBoardService>>,
     ticket_editing_service: OnceLock<Arc<dyn ITicketEditingService>>,
+    ticket_moving_service: OnceLock<Arc<dyn ITicketMovingService>>,
+    board_service: OnceLock<Arc<dyn IBoardService>>,
 }
 
 impl Scope {
@@ -51,6 +56,17 @@ impl Scope {
 
     pub fn get_refresh_token_creator(&self) -> Arc<dyn IRefreshTokenCreator> {
         self.refresh_token_creator.get_or_init(|| self.create_refresh_token_creator()).clone()
+    }
+
+    fn create_refresh_token_service(&self) -> Arc<dyn IRefreshTokenService> {
+        Arc::new(RefreshTokenService {
+            pool: self.container.pool.clone(),
+            jwt_auth: self.container.jwt_auth.clone(),
+        })
+    }
+
+    pub fn get_refresh_token_service(&self) -> Arc<dyn IRefreshTokenService> {
+        self.refresh_token_service.get_or_init(|| self.create_refresh_token_service()).clone()
     }
 
     fn create_registration_service(&self) -> Arc<dyn IRegistrationService> {
@@ -113,6 +129,26 @@ impl Scope {
     pub fn get_ticket_editing_service(&self) -> Arc<dyn ITicketEditingService> {
         self.ticket_editing_service.get_or_init(|| self.create_ticket_editing_service()).clone()
     }
+
+    fn create_ticket_moving_service(&self) -> Arc<dyn ITicketMovingService> {
+        Arc::new(TicketMovingService {
+            pool: self.container.pool.clone(),
+        })
+    }
+
+    pub fn get_ticket_moving_service(&self) -> Arc<dyn ITicketMovingService> {
+        self.ticket_moving_service.get_or_init(|| self.create_ticket_moving_service()).clone()
+    }
+
+    fn create_board_service(&self) -> Arc<dyn IBoardService> {
+        Arc::new(BoardService {
+            pool: self.container.pool.clone(),
+        })
+    }
+
+    pub fn get_board_service(&self) -> Arc<dyn IBoardService> {
+        self.board_service.get_or_init(|| self.create_board_service()).clone()
+    }
 }
 
 #[derive(Clone)]
@@ -132,12 +168,15 @@ impl Container {
             login_service: OnceLock::new(),
             user_email_getter: OnceLock::new(),
             refresh_token_creator: OnceLock::new(),
+            refresh_token_service: OnceLock::new(),
             registration_service: OnceLock::new(),
             user_creator: OnceLock::new(),
             ticket_service: OnceLock::new(),
             ticket_retrieval_service: OnceLock::new(),
             ticket_board_service: OnceLock::new(),
             ticket_editing_service: OnceLock::new(),
+            ticket_moving_service: OnceLock::new(),
+            board_service: OnceLock::new(),
         }
     }
 }

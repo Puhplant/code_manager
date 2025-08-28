@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use clorinde::{deadpool_postgres::Pool, queries::tickets::{get_board_tickets_by_board_id, get_backlog_tickets_by_board_id, Ticket}};
+use clorinde::{deadpool_postgres::Pool, queries::tickets::{get_board_tickets_by_board_id, get_backlog_tickets_by_board_id, MinTicket}};
 use std::collections::HashMap;
 use serde::Serialize;
 
@@ -9,22 +9,20 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Serialize)]
-pub struct TicketResponse {
+pub struct MinTicketResponse {
     pub id: i32,
     pub title: String,
-    pub description: String,
     pub column_id: Option<i32>,
     pub position: Option<f64>,
     pub account_id: i32,
     pub user_id: i32,
 }
 
-impl From<Ticket> for TicketResponse {
-    fn from(ticket: Ticket) -> Self {
+impl From<MinTicket> for MinTicketResponse {
+    fn from(ticket: MinTicket) -> Self {
         Self {
             id: ticket.id,
             title: ticket.title,
-            description: ticket.description,
             column_id: ticket.column_id,
             position: ticket.position,
             account_id: ticket.account_id,
@@ -36,7 +34,7 @@ impl From<Ticket> for TicketResponse {
 #[derive(Debug, Clone, Serialize)]
 pub struct ColumnTickets {
     pub column_id: i32,
-    pub tickets: Vec<TicketResponse>,
+    pub tickets: Vec<MinTicketResponse>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -46,7 +44,7 @@ pub struct BoardTicketsResponse {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct BacklogTicketsResponse {
-    pub tickets: Vec<TicketResponse>,
+    pub tickets: Vec<MinTicketResponse>,
 }
 
 #[async_trait]
@@ -73,10 +71,10 @@ impl ITicketBoardService for TicketBoardService {
             })?;
 
         // Group tickets by column_id
-        let mut column_map: HashMap<i32, Vec<TicketResponse>> = HashMap::new();
+        let mut column_map: HashMap<i32, Vec<MinTicketResponse>> = HashMap::new();
         for ticket in tickets {
             if let Some(column_id) = ticket.column_id {
-                column_map.entry(column_id).or_insert_with(Vec::new).push(TicketResponse::from(ticket));
+                column_map.entry(column_id).or_insert_with(Vec::new).push(MinTicketResponse::from(ticket));
             }
         }
 
@@ -109,7 +107,7 @@ impl ITicketBoardService for TicketBoardService {
                 ApiError::InternalServerError
             })?;
 
-        let ticket_responses: Vec<TicketResponse> = tickets.into_iter().map(TicketResponse::from).collect();
+        let ticket_responses: Vec<MinTicketResponse> = tickets.into_iter().map(MinTicketResponse::from).collect();
 
         Ok(BacklogTicketsResponse { tickets: ticket_responses })
     }

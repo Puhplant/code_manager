@@ -2,7 +2,7 @@ use axum::{extract::{State, Path}, Extension, Json};
 use serde::Serialize;
 
 use crate::{
-    controllers::validation::ticket_validation::{CreateTicketValidation, GetTicketsByBoardIdValidation, EditTicketValidation},
+    controllers::validation::ticket_validation::{CreateTicketValidation, GetTicketsByBoardIdValidation, EditTicketValidation, MoveTicketValidation},
     middleware::{validation::Validatable},
     models::{api_error::ApiError, user_details::UserDetails},
     registration::container::Container,
@@ -99,6 +99,25 @@ pub async fn edit_ticket(
     
     ticket_editing_service.edit_ticket(
         &edit_ticket_request,
+        ticket_id,
+        user_details.account_id,
+    ).await?;
+
+    Ok(())
+}
+
+#[axum::debug_handler]
+pub async fn move_ticket(
+    State(state): State<Container>,
+    user_details: Extension<UserDetails>,
+    Path(ticket_id): Path<i32>,
+    move_ticket_request: Validatable<MoveTicketValidation>,
+) -> Result<(), ApiError> {
+    let move_ticket_request = move_ticket_request.validate()?;
+    let ticket_moving_service = state.create_scope().get_ticket_moving_service();
+    
+    ticket_moving_service.move_ticket(
+        &move_ticket_request,
         ticket_id,
         user_details.account_id,
     ).await?;

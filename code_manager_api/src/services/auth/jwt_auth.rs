@@ -23,7 +23,7 @@ impl JwtAuth {
         }
     }
 
-    pub fn create_token(&self, user_id: &str, account_id: i32) -> Result<String, jsonwebtoken::errors::Error> {
+    pub fn create_token(&self, user_id: &str, account_id: i32) -> Result<(String, DateTime<Utc>), jsonwebtoken::errors::Error> {
         let now = Utc::now();
         let expires_at = now + Duration::minutes(60);
 
@@ -34,7 +34,8 @@ impl JwtAuth {
             account_id: account_id,
         };
 
-        encode(&Header::default(), &claims, &self.encoding_key)
+        let token = encode(&Header::default(), &claims, &self.encoding_key)?;
+        Ok((token, expires_at))
     }
 
     pub fn verify_token(&self, token: &str) -> Result<Claims, jsonwebtoken::errors::Error> {

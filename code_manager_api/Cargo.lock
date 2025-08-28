@@ -279,6 +279,7 @@ dependencies = [
  "postgres-protocol",
  "postgres-types",
  "tokio-postgres",
+ "uuid",
 ]
 
 [[package]]
@@ -1374,6 +1375,7 @@ dependencies = [
  "fallible-iterator",
  "postgres-derive",
  "postgres-protocol",
+ "uuid",
 ]
 
 [[package]]

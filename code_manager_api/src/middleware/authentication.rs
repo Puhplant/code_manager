@@ -15,7 +15,6 @@ pub async fn auth_middleware(State(state): State<Container>, mut req: Request, n
         .and_then(|header| header.to_str().ok())
         .and_then(|header| header.split_whitespace().nth(1));
 
-
     if let Some(token) = token {
         let decoded_token = state.jwt_auth.verify_token(token)
             .map_err(|e| {

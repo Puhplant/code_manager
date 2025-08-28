@@ -39,6 +39,13 @@ pub struct EditTicketParams<T1: crate::StringSql, T2: crate::StringSql> {
     pub account_id: i32,
 }
 #[derive(Clone, Copy, Debug)]
+pub struct MoveTicketParams {
+    pub column_id: Option<i32>,
+    pub position: Option<f64>,
+    pub id: i32,
+    pub account_id: i32,
+}
+#[derive(Clone, Copy, Debug)]
 pub struct DeleteTicketParams {
     pub id: i32,
     pub account_id: i32,
@@ -74,6 +81,7 @@ pub struct Ticket {
     pub column_id: Option<i32>,
     pub position: Option<f64>,
     pub account_id: i32,
+    pub board_id: i32,
     pub user_id: i32,
 }
 pub struct TicketBorrowed<'a> {
@@ -83,6 +91,7 @@ pub struct TicketBorrowed<'a> {
     pub column_id: Option<i32>,
     pub position: Option<f64>,
     pub account_id: i32,
+    pub board_id: i32,
     pub user_id: i32,
 }
 impl<'a> From<TicketBorrowed<'a>> for Ticket {
@@ -94,6 +103,7 @@ impl<'a> From<TicketBorrowed<'a>> for Ticket {
             column_id,
             position,
             account_id,
+            board_id,
             user_id,
         }: TicketBorrowed<'a>,
     ) -> Self {
@@ -103,6 +113,49 @@ impl<'a> From<TicketBorrowed<'a>> for Ticket {
             description: description.into(),
             column_id,
             position,
+            account_id,
+            board_id,
+            user_id,
+        }
+    }
+}
+#[derive(Debug, Clone, PartialEq)]
+pub struct MinTicket {
+    pub id: i32,
+    pub title: String,
+    pub column_id: Option<i32>,
+    pub position: Option<f64>,
+    pub board_id: i32,
+    pub account_id: i32,
+    pub user_id: i32,
+}
+pub struct MinTicketBorrowed<'a> {
+    pub id: i32,
+    pub title: &'a str,
+    pub column_id: Option<i32>,
+    pub position: Option<f64>,
+    pub board_id: i32,
+    pub account_id: i32,
+    pub user_id: i32,
+}
+impl<'a> From<MinTicketBorrowed<'a>> for MinTicket {
+    fn from(
+        MinTicketBorrowed {
+            id,
+            title,
+            column_id,
+            position,
+            board_id,
+            account_id,
+            user_id,
+        }: MinTicketBorrowed<'a>,
+    ) -> Self {
+        Self {
+            id,
+            title: title.into(),
+            column_id,
+            position,
+            board_id,
             account_id,
             user_id,
         }
@@ -222,6 +275,70 @@ where
 {
     pub fn map<R>(self, mapper: fn(TicketBorrowed) -> R) -> TicketQuery<'c, 'a, 's, C, R, N> {
         TicketQuery {
+            client: self.client,
+            params: self.params,
+            query: self.query,
+            cached: self.cached,
+            extractor: self.extractor,
+            mapper,
+        }
+    }
+    pub async fn one(self) -> Result<T, tokio_postgres::Error> {
+        let row =
+            crate::client::async_::one(self.client, self.query, &self.params, self.cached).await?;
+        Ok((self.mapper)((self.extractor)(&row)?))
+    }
+    pub async fn all(self) -> Result<Vec<T>, tokio_postgres::Error> {
+        self.iter().await?.try_collect().await
+    }
+    pub async fn opt(self) -> Result<Option<T>, tokio_postgres::Error> {
+        let opt_row =
+            crate::client::async_::opt(self.client, self.query, &self.params, self.cached).await?;
+        Ok(opt_row
+            .map(|row| {
+                let extracted = (self.extractor)(&row)?;
+                Ok((self.mapper)(extracted))
+            })
+            .transpose()?)
+    }
+    pub async fn iter(
+        self,
+    ) -> Result<
+        impl futures::Stream<Item = Result<T, tokio_postgres::Error>> + 'c,
+        tokio_postgres::Error,
+    > {
+        let stream = crate::client::async_::raw(
+            self.client,
+            self.query,
+            crate::slice_iter(&self.params),
+            self.cached,
+        )
+        .await?;
+        let mapped = stream
+            .map(move |res| {
+                res.and_then(|row| {
+                    let extracted = (self.extractor)(&row)?;
+                    Ok((self.mapper)(extracted))
+                })
+            })
+            .into_stream();
+        Ok(mapped)
+    }
+}
+pub struct MinTicketQuery<'c, 'a, 's, C: GenericClient, T, const N: usize> {
+    client: &'c C,
+    params: [&'a (dyn postgres_types::ToSql + Sync); N],
+    query: &'static str,
+    cached: Option<&'s tokio_postgres::Statement>,
+    extractor: fn(&tokio_postgres::Row) -> Result<MinTicketBorrowed, tokio_postgres::Error>,
+    mapper: fn(MinTicketBorrowed) -> T,
+}
+impl<'c, 'a, 's, C, T: 'c, const N: usize> MinTicketQuery<'c, 'a, 's, C, T, N>
+where
+    C: GenericClient,
+{
+    pub fn map<R>(self, mapper: fn(MinTicketBorrowed) -> R) -> MinTicketQuery<'c, 'a, 's, C, R, N> {
+        MinTicketQuery {
             client: self.client,
             params: self.params,
             query: self.query,
@@ -413,7 +530,7 @@ impl<'c, 'a, 's, C: GenericClient, T1: crate::StringSql, T2: crate::StringSql>
 pub struct GetTicketByIdStmt(&'static str, Option<tokio_postgres::Statement>);
 pub fn get_ticket_by_id() -> GetTicketByIdStmt {
     GetTicketByIdStmt(
-        "SELECT id, title, description, column_id, position, account_id, user_id FROM tickets WHERE id = $1 AND account_id = $2",
+        "SELECT id, title, description, column_id, position, account_id, board_id, user_id FROM tickets WHERE id = $1 AND account_id = $2",
         None,
     )
 }
@@ -445,7 +562,8 @@ impl GetTicketByIdStmt {
                         column_id: row.try_get(3)?,
                         position: row.try_get(4)?,
                         account_id: row.try_get(5)?,
-                        user_id: row.try_get(6)?,
+                        board_id: row.try_get(6)?,
+                        user_id: row.try_get(7)?,
                     })
                 },
             mapper: |it| Ticket::from(it),
@@ -473,7 +591,7 @@ impl<'c, 'a, 's, C: GenericClient>
 pub struct GetTicketsByColumnIdStmt(&'static str, Option<tokio_postgres::Statement>);
 pub fn get_tickets_by_column_id() -> GetTicketsByColumnIdStmt {
     GetTicketsByColumnIdStmt(
-        "SELECT id, title, description, column_id, position, account_id, user_id FROM tickets WHERE column_id = $1 AND account_id = $2 ORDER BY position ASC",
+        "SELECT id, title, description, column_id, position, account_id, board_id, user_id FROM tickets WHERE column_id = $1 AND account_id = $2 ORDER BY position ASC",
         None,
     )
 }
@@ -505,7 +623,8 @@ impl GetTicketsByColumnIdStmt {
                         column_id: row.try_get(3)?,
                         position: row.try_get(4)?,
                         account_id: row.try_get(5)?,
-                        user_id: row.try_get(6)?,
+                        board_id: row.try_get(6)?,
+                        user_id: row.try_get(7)?,
                     })
                 },
             mapper: |it| Ticket::from(it),
@@ -533,7 +652,7 @@ impl<'c, 'a, 's, C: GenericClient>
 pub struct GetBoardTicketsByBoardIdStmt(&'static str, Option<tokio_postgres::Statement>);
 pub fn get_board_tickets_by_board_id() -> GetBoardTicketsByBoardIdStmt {
     GetBoardTicketsByBoardIdStmt(
-        "SELECT id, title, description, column_id, position, account_id, user_id FROM tickets WHERE board_id = $1 AND account_id = $2 and column_id != null ORDER BY column_id ASC, position ASC",
+        "SELECT id, title, column_id, position, board_id, account_id, user_id FROM ( select id, title, column_id, position, board_id, account_id, user_id, row_number() over (partition by column_id order by position ASC) as row_number from tickets where board_id = $1 AND account_id = $2 and column_id != null ) sub WHERE row_number <= 10",
         None,
     )
 }
@@ -550,25 +669,25 @@ impl GetBoardTicketsByBoardIdStmt {
         client: &'c C,
         board_id: &'a i32,
         account_id: &'a i32,
-    ) -> TicketQuery<'c, 'a, 's, C, Ticket, 2> {
-        TicketQuery {
+    ) -> MinTicketQuery<'c, 'a, 's, C, MinTicket, 2> {
+        MinTicketQuery {
             client,
             params: [board_id, account_id],
             query: self.0,
             cached: self.1.as_ref(),
             extractor:
-                |row: &tokio_postgres::Row| -> Result<TicketBorrowed, tokio_postgres::Error> {
-                    Ok(TicketBorrowed {
+                |row: &tokio_postgres::Row| -> Result<MinTicketBorrowed, tokio_postgres::Error> {
+                    Ok(MinTicketBorrowed {
                         id: row.try_get(0)?,
                         title: row.try_get(1)?,
-                        description: row.try_get(2)?,
-                        column_id: row.try_get(3)?,
-                        position: row.try_get(4)?,
+                        column_id: row.try_get(2)?,
+                        position: row.try_get(3)?,
+                        board_id: row.try_get(4)?,
                         account_id: row.try_get(5)?,
                         user_id: row.try_get(6)?,
                     })
                 },
-            mapper: |it| Ticket::from(it),
+            mapper: |it| MinTicket::from(it),
         }
     }
 }
@@ -578,7 +697,7 @@ impl<'c, 'a, 's, C: GenericClient>
         'a,
         's,
         GetBoardTicketsByBoardIdParams,
-        TicketQuery<'c, 'a, 's, C, Ticket, 2>,
+        MinTicketQuery<'c, 'a, 's, C, MinTicket, 2>,
         C,
     > for GetBoardTicketsByBoardIdStmt
 {
@@ -586,14 +705,14 @@ impl<'c, 'a, 's, C: GenericClient>
         &'s self,
         client: &'c C,
         params: &'a GetBoardTicketsByBoardIdParams,
-    ) -> TicketQuery<'c, 'a, 's, C, Ticket, 2> {
+    ) -> MinTicketQuery<'c, 'a, 's, C, MinTicket, 2> {
         self.bind(client, &params.board_id, &params.account_id)
     }
 }
 pub struct GetBacklogTicketsByBoardIdStmt(&'static str, Option<tokio_postgres::Statement>);
 pub fn get_backlog_tickets_by_board_id() -> GetBacklogTicketsByBoardIdStmt {
     GetBacklogTicketsByBoardIdStmt(
-        "SELECT id, title, description, column_id, position, account_id, user_id FROM tickets WHERE board_id = $1 AND account_id = $2 and column_id is null ORDER BY position ASC",
+        "SELECT id, title, column_id, position, account_id, board_id, user_id FROM tickets WHERE board_id = $1 AND account_id = $2 and column_id is null ORDER BY position ASC",
         None,
     )
 }
@@ -610,25 +729,25 @@ impl GetBacklogTicketsByBoardIdStmt {
         client: &'c C,
         board_id: &'a i32,
         account_id: &'a i32,
-    ) -> TicketQuery<'c, 'a, 's, C, Ticket, 2> {
-        TicketQuery {
+    ) -> MinTicketQuery<'c, 'a, 's, C, MinTicket, 2> {
+        MinTicketQuery {
             client,
             params: [board_id, account_id],
             query: self.0,
             cached: self.1.as_ref(),
             extractor:
-                |row: &tokio_postgres::Row| -> Result<TicketBorrowed, tokio_postgres::Error> {
-                    Ok(TicketBorrowed {
+                |row: &tokio_postgres::Row| -> Result<MinTicketBorrowed, tokio_postgres::Error> {
+                    Ok(MinTicketBorrowed {
                         id: row.try_get(0)?,
                         title: row.try_get(1)?,
-                        description: row.try_get(2)?,
-                        column_id: row.try_get(3)?,
-                        position: row.try_get(4)?,
-                        account_id: row.try_get(5)?,
+                        column_id: row.try_get(2)?,
+                        position: row.try_get(3)?,
+                        board_id: row.try_get(5)?,
+                        account_id: row.try_get(4)?,
                         user_id: row.try_get(6)?,
                     })
                 },
-            mapper: |it| Ticket::from(it),
+            mapper: |it| MinTicket::from(it),
         }
     }
 }
@@ -638,7 +757,7 @@ impl<'c, 'a, 's, C: GenericClient>
         'a,
         's,
         GetBacklogTicketsByBoardIdParams,
-        TicketQuery<'c, 'a, 's, C, Ticket, 2>,
+        MinTicketQuery<'c, 'a, 's, C, MinTicket, 2>,
         C,
     > for GetBacklogTicketsByBoardIdStmt
 {
@@ -646,7 +765,7 @@ impl<'c, 'a, 's, C: GenericClient>
         &'s self,
         client: &'c C,
         params: &'a GetBacklogTicketsByBoardIdParams,
-    ) -> TicketQuery<'c, 'a, 's, C, Ticket, 2> {
+    ) -> MinTicketQuery<'c, 'a, 's, C, MinTicket, 2> {
         self.bind(client, &params.board_id, &params.account_id)
     }
 }
@@ -703,6 +822,62 @@ impl<'a, C: GenericClient + Send + Sync, T1: crate::StringSql, T2: crate::String
             &params.title,
             &params.description,
             &params.column_id,
+            &params.id,
+            &params.account_id,
+        ))
+    }
+}
+pub struct MoveTicketStmt(&'static str, Option<tokio_postgres::Statement>);
+pub fn move_ticket() -> MoveTicketStmt {
+    MoveTicketStmt(
+        "UPDATE tickets SET column_id = $1, position = $2 WHERE id = $3 AND account_id = $4",
+        None,
+    )
+}
+impl MoveTicketStmt {
+    pub async fn prepare<'a, C: GenericClient>(
+        mut self,
+        client: &'a C,
+    ) -> Result<Self, tokio_postgres::Error> {
+        self.1 = Some(client.prepare(self.0).await?);
+        Ok(self)
+    }
+    pub async fn bind<'c, 'a, 's, C: GenericClient>(
+        &'s self,
+        client: &'c C,
+        column_id: &'a Option<i32>,
+        position: &'a Option<f64>,
+        id: &'a i32,
+        account_id: &'a i32,
+    ) -> Result<u64, tokio_postgres::Error> {
+        client
+            .execute(self.0, &[column_id, position, id, account_id])
+            .await
+    }
+}
+impl<'a, C: GenericClient + Send + Sync>
+    crate::client::async_::Params<
+        'a,
+        'a,
+        'a,
+        MoveTicketParams,
+        std::pin::Pin<
+            Box<dyn futures::Future<Output = Result<u64, tokio_postgres::Error>> + Send + 'a>,
+        >,
+        C,
+    > for MoveTicketStmt
+{
+    fn params(
+        &'a self,
+        client: &'a C,
+        params: &'a MoveTicketParams,
+    ) -> std::pin::Pin<
+        Box<dyn futures::Future<Output = Result<u64, tokio_postgres::Error>> + Send + 'a>,
+    > {
+        Box::pin(self.bind(
+            client,
+            &params.column_id,
+            &params.position,
             &params.id,
             &params.account_id,
         ))

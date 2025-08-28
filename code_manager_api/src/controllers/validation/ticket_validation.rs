@@ -284,4 +284,85 @@ pub struct EditTicketRequest {
     pub title: String,
     pub description: String,
     pub column_id: Option<i32>,
+}
+
+#[derive(Deserialize)]
+pub struct MoveTicketValidation {
+    column_id: Option<i32>,
+    position: Option<f64>,
+}
+
+impl RequestValidator for MoveTicketValidation {
+    type RequestOutput = MoveTicketRequest;
+
+    fn validate(self) -> Result<Self::RequestOutput, ApiError> {
+        let column_id = if let Some(column_id) = self.column_id {
+            if column_id <= 0 {
+                Err(FieldError {
+                    field: "column_id",
+                    message: "Column ID must be greater than 0".to_string(),
+                })
+            } else {
+                Ok(Some(column_id))
+            }
+        } else {
+            Ok(None)
+        };
+
+        let position = if let Some(position) = self.position {
+            if position < 0.0 {
+                Err(FieldError {
+                    field: "position",
+                    message: "Position must be non-negative".to_string(),
+                })
+            } else {
+                Ok(Some(position))
+            }
+        } else {
+            Ok(None)
+        };
+
+        match (column_id, position) {
+            (Ok(Some(column_id)), Ok(Some(position))) => Ok(MoveTicketRequest {
+                position: Some(position),
+                column_id: Some(column_id),
+            }),
+            (Ok(None), Ok(None)) => Ok(MoveTicketRequest {
+                position: None,
+                column_id: None,
+            }),
+            (Ok(Some(_)), Ok(None)) => Err(ApiError::BadRequest(BadRequestError {
+                message: "Position is required when column_id is provided".to_string(),
+                field_errors: Some(vec![FieldError {
+                    field: "position",
+                    message: "Position is required when column_id is provided".to_string(),
+                }]),
+            })),
+            (Ok(None), Ok(Some(_))) => Err(ApiError::BadRequest(BadRequestError {
+                message: "Column ID is required when position is provided".to_string(),
+                field_errors: Some(vec![FieldError {
+                    field: "column_id",
+                    message: "Column ID is required when position is provided".to_string(),
+                }]),
+            })),
+            (column_id, position) => {
+                let mut validation_errors = Vec::new();
+                if let Err(e) = column_id {
+                    validation_errors.push(e);
+                }
+                if let Err(e) = position {
+                    validation_errors.push(e);
+                }
+                Err(ApiError::BadRequest(BadRequestError {
+                    message: "Validation errors".to_string(),
+                    field_errors: Some(validation_errors),
+                }))
+            }
+        }
+    }
+}
+
+pub struct MoveTicketRequest {
+    pub position: Option<f64>,
+    pub column_id: Option<i32>,
 } 

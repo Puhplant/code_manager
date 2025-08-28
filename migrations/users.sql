@@ -14,7 +14,7 @@ create index idx_users_account_id on users (account_id);
 
 
 create table refresh_tokens (
-    id serial primary key,
+    id uuid primary key default gen_random_uuid(),
     user_id int not null,
     token varchar(255) not null,
     expires_at timestamp not null,

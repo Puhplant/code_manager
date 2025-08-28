@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
-use chrono::{Duration, Utc};
 
 use crate::{models::{api_error::{ApiError, BadRequestError}, services::login_response::LoginServiceResponse}, services::auth::{jwt_auth::JwtAuth, refresh_token_creator::IRefreshTokenCreator, user_email_getter::IUserEmailGetter}};
 
@@ -42,7 +41,7 @@ impl ILoginService for LoginService {
             }));
         }
 
-        let token = self.jwt_auth.create_token(&user.id.to_string(), user.account_id).map_err(|e| {
+        let (token, expires_at) = self.jwt_auth.create_token(&user.id.to_string(), user.account_id).map_err(|e| {
             println!("Error creating token: {}", e);
             ApiError::InternalServerError
         })?;
@@ -53,7 +52,7 @@ impl ILoginService for LoginService {
             token: token,
             user_id: user.id,
             refresh_token: refresh_token,
-            expires_at: Utc::now() + Duration::minutes(30),
+            expires_at: expires_at,
         })
     }
 }

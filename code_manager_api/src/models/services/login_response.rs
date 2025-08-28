@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use uuid::Uuid;
 
 pub struct LoginServiceResponse {
     pub token: String,
@@ -8,6 +9,7 @@ pub struct LoginServiceResponse {
 }
 
 pub struct RefreshToken {
+    pub id: Uuid,
     pub token: String,
     pub expires_at: DateTime<Utc>,
 }

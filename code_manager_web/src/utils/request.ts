@@ -46,6 +46,7 @@ export class AuthToken {
 
 // In-memory token storage
 let authToken: AuthToken | null = null;
+let refreshAuthInterval: NodeJS.Timeout | null = null;
 
 /**
  * Get the authorization token from memory
@@ -54,19 +55,41 @@ function getAuthToken(): AuthToken | null {
   return authToken;
 }
 
+async function refreshToken(): Promise<void> {
+  const response = await fetch('/api/auth/refresh', {
+    method: 'POST',
+  });
+
+  if (response.ok) {
+    const data = await response.json();
+    setAuthToken(data.token, new Date(data.expires_at));
+  }
+}
+
+//Refresh token on page load
+let refreshTokenPromise: Promise<void> | null = null;
+(() => {
+  if(!authToken) {
+    refreshTokenPromise = refreshToken();
+  }
+})();
+
 /**
  * Create headers with authorization token if available
  */
-function createHeaders(customHeaders?: Record<string, string>): Headers {
+async function createHeaders(customHeaders?: Record<string, string>): Promise<Headers> {
   const headers = new Headers();
   
   // Set default content type for JSON
   headers.set('Content-Type', 'application/json');
   
   // Add authorization token if available
+  if(refreshTokenPromise) {
+    await refreshTokenPromise;
+  }
   const token = getAuthToken();
   if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
+    headers.set('Authorization', `Bearer ${token.token}`);
   }
   
   // Add custom headers
@@ -101,7 +124,8 @@ async function processResponse<T>(response: Response): Promise<ApiResponse<T>> {
       } catch {
         // If we can't parse error response as JSON, use the default message
       }
-    } else {
+    }
+    else {
       // For other error statuses, try to get error message
       try {
         const errorData = await response.json();
@@ -139,10 +163,14 @@ async function processResponse<T>(response: Response): Promise<ApiResponse<T>> {
  */
 export async function get<T = any>(
   url: string,
+  data?: Record<string, string>,
   options: RequestOptions = {}
 ): Promise<ApiResponse<T>> {
-  const headers = createHeaders(options.headers);
+  const headers = await createHeaders(options.headers);
   
+  const queryString = data ? new URLSearchParams(data).toString() : '';
+  url = queryString ? `${url}?${queryString}` : url;
+
   const response = await fetch(url, {
     method: 'GET',
     headers,
@@ -160,7 +188,7 @@ export async function post<T = any>(
   data?: any,
   options: RequestOptions = {}
 ): Promise<ApiResponse<T>> {
-  const headers = createHeaders(options.headers);
+  const headers = await createHeaders(options.headers);
   
   const body = data ? JSON.stringify(data) : undefined;
   
@@ -182,7 +210,7 @@ export async function put<T = any>(
   data?: any,
   options: RequestOptions = {}
 ): Promise<ApiResponse<T>> {
-  const headers = createHeaders(options.headers);
+  const headers = await createHeaders(options.headers);
   
   const body = data ? JSON.stringify(data) : undefined;
   
@@ -203,7 +231,7 @@ export async function del<T = any>(
   url: string,
   options: RequestOptions = {}
 ): Promise<ApiResponse<T>> {
-  const headers = createHeaders(options.headers);
+  const headers = await createHeaders(options.headers);
   
   const response = await fetch(url, {
     method: 'DELETE',
@@ -222,7 +250,7 @@ export async function patch<T = any>(
   data?: any,
   options: RequestOptions = {}
 ): Promise<ApiResponse<T>> {
-  const headers = createHeaders(options.headers);
+  const headers = await createHeaders(options.headers);
   
   const body = data ? JSON.stringify(data) : undefined;
   
@@ -241,6 +269,15 @@ export async function patch<T = any>(
  */
 export function setAuthToken(token: string, expiresAt: Date): void {
   authToken = new AuthToken(token, expiresAt);
+  if (refreshAuthInterval) {
+    clearInterval(refreshAuthInterval);
+  }
+  let nextRefresh = new Date(expiresAt).getTime() - Date.now();
+  if (nextRefresh < 120000) {
+    nextRefresh = 600000;
+  }
+  nextRefresh -= 30000;
+  refreshAuthInterval = setInterval(refreshToken, nextRefresh);
 }
 
 /**
@@ -248,6 +285,10 @@ export function setAuthToken(token: string, expiresAt: Date): void {
  */
 export function removeAuthToken(): void {
   authToken = null;
+  if (refreshAuthInterval) {
+    clearInterval(refreshAuthInterval);
+    refreshAuthInterval = null;
+  }
 }
 
 /**

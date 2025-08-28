@@ -33,6 +33,7 @@
     "@mateothegreat/svelte5-router": "^2.16.8",
     "@melt-ui/svelte": "^0.86.6",
     "clsx": "^2.1.1",
+    "lucide-svelte": "^0.541.0",
     "svelte": "^5.38.0",
     "tailwind-merge": "^3.3.1"
   }

@@ -30,10 +30,13 @@ async fn main() {
         .route("/", axum::routing::get(|| async { "Hello, World!" }))
         .route("/api/auth/login", axum::routing::post(controllers::auth_controller::login))
         .route("/api/auth/register", axum::routing::post(controllers::auth_controller::register))
+        .route("/api/auth/refresh", axum::routing::post(controllers::auth_controller::refresh_token))
         .route("/api/tickets", axum::routing::post(controllers::ticket_controller::create_ticket))
         .route("/api/tickets/{id}", axum::routing::get(controllers::ticket_controller::get_ticket_by_id))
         .route("/api/tickets/{id}", axum::routing::put(controllers::ticket_controller::edit_ticket))
-        .route("/api/tickets/board", axum::routing::post(controllers::ticket_controller::get_tickets_by_board_id))
+        .route("/api/tickets/{id}/move", axum::routing::put(controllers::ticket_controller::move_ticket))
+        .route("/api/boards", axum::routing::get(controllers::board_controller::get_boards_by_account_id))
+        .route("/api/tickets/board", axum::routing::get(controllers::ticket_controller::get_tickets_by_board_id))
         .with_state(container.clone())
         .route_layer(axum::middleware::from_fn_with_state(container.clone(), auth_middleware));
 
