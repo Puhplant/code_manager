@@ -21,11 +21,17 @@ pub struct CreateColumnParams<T1: crate::StringSql> {
     pub name: T1,
     pub account_id: i32,
 }
+#[derive(Clone, Copy, Debug)]
+pub struct GetColumnsByBoardIdParams {
+    pub board_id: i32,
+    pub account_id: i32,
+}
 #[derive(Debug)]
 pub struct EditColumnParams<T1: crate::StringSql> {
     pub name: T1,
     pub id: i32,
     pub account_id: i32,
+    pub board_id: i32,
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct Board {
@@ -475,11 +481,14 @@ impl<'c, 'a, 's, C: GenericClient, T1: crate::StringSql>
         self.bind(client, &params.name, &params.account_id)
     }
 }
-pub struct GetColumnsByAccountIdStmt(&'static str, Option<tokio_postgres::Statement>);
-pub fn get_columns_by_account_id() -> GetColumnsByAccountIdStmt {
-    GetColumnsByAccountIdStmt("SELECT id, name FROM columns WHERE account_id = $1", None)
+pub struct GetColumnsByBoardIdStmt(&'static str, Option<tokio_postgres::Statement>);
+pub fn get_columns_by_board_id() -> GetColumnsByBoardIdStmt {
+    GetColumnsByBoardIdStmt(
+        "SELECT id, name FROM columns WHERE board_id = $1 AND account_id = $2",
+        None,
+    )
 }
-impl GetColumnsByAccountIdStmt {
+impl GetColumnsByBoardIdStmt {
     pub async fn prepare<'a, C: GenericClient>(
         mut self,
         client: &'a C,
@@ -490,11 +499,12 @@ impl GetColumnsByAccountIdStmt {
     pub fn bind<'c, 'a, 's, C: GenericClient>(
         &'s self,
         client: &'c C,
+        board_id: &'a i32,
         account_id: &'a i32,
-    ) -> ColumnQuery<'c, 'a, 's, C, Column, 1> {
+    ) -> ColumnQuery<'c, 'a, 's, C, Column, 2> {
         ColumnQuery {
             client,
-            params: [account_id],
+            params: [board_id, account_id],
             query: self.0,
             cached: self.1.as_ref(),
             extractor:
@@ -508,10 +518,28 @@ impl GetColumnsByAccountIdStmt {
         }
     }
 }
+impl<'c, 'a, 's, C: GenericClient>
+    crate::client::async_::Params<
+        'c,
+        'a,
+        's,
+        GetColumnsByBoardIdParams,
+        ColumnQuery<'c, 'a, 's, C, Column, 2>,
+        C,
+    > for GetColumnsByBoardIdStmt
+{
+    fn params(
+        &'s self,
+        client: &'c C,
+        params: &'a GetColumnsByBoardIdParams,
+    ) -> ColumnQuery<'c, 'a, 's, C, Column, 2> {
+        self.bind(client, &params.board_id, &params.account_id)
+    }
+}
 pub struct EditColumnStmt(&'static str, Option<tokio_postgres::Statement>);
 pub fn edit_column() -> EditColumnStmt {
     EditColumnStmt(
-        "UPDATE columns SET name = $1 WHERE id = $2 AND account_id = $3",
+        "UPDATE columns SET name = $1 WHERE id = $2 AND account_id = $3 AND board_id = $4",
         None,
     )
 }
@@ -529,8 +557,11 @@ impl EditColumnStmt {
         name: &'a T1,
         id: &'a i32,
         account_id: &'a i32,
+        board_id: &'a i32,
     ) -> Result<u64, tokio_postgres::Error> {
-        client.execute(self.0, &[name, id, account_id]).await
+        client
+            .execute(self.0, &[name, id, account_id, board_id])
+            .await
     }
 }
 impl<'a, C: GenericClient + Send + Sync, T1: crate::StringSql>
@@ -552,6 +583,12 @@ impl<'a, C: GenericClient + Send + Sync, T1: crate::StringSql>
     ) -> std::pin::Pin<
         Box<dyn futures::Future<Output = Result<u64, tokio_postgres::Error>> + Send + 'a>,
     > {
-        Box::pin(self.bind(client, &params.name, &params.id, &params.account_id))
+        Box::pin(self.bind(
+            client,
+            &params.name,
+            &params.id,
+            &params.account_id,
+            &params.board_id,
+        ))
     }
 }

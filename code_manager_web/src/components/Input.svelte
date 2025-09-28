@@ -11,7 +11,7 @@
     required?: boolean;
     disabled?: boolean;
     error?: string;
-    autoComplete?: string;
+    autoComplete?: AutoFill;
     class?: string;
     label?: string;
     onInput?: () => void;
@@ -32,7 +32,7 @@
     label = '',
     onInput,
     ...props 
-  } = $props();
+  }: InputProps = $props();
 
   const baseStyles = 'focus:outline-none appearance-none block w-full px-3 py-2 border border-input rounded-md shadow-sm placeholder-muted-foreground focus:ring-ring focus:border-ring sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed bg-background text-foreground';
   

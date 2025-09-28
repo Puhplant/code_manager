@@ -13,7 +13,7 @@
   interface SelectProps {
     options: SelectOption[];
     selected: SelectOption | null;
-    onSelectedChange: (option: SelectOption | null) => void;
+    onSelectedChange: (option: number | undefined) => void;
     placeholder?: string;
     labelText?: string;
   }
@@ -26,7 +26,7 @@
   } = createSelect<number>({
     defaultSelected: selected || undefined,
     forceVisible: true,
-    onValueChange: ({ next }) => onSelectedChange(next),
+    onSelectedChange: ({ next }) => { onSelectedChange(next?.value); return next; },
     positioning: {
       placement: 'bottom',
       fitViewport: true,

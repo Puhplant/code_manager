@@ -46,13 +46,19 @@
 <div use:portal class="fixed top-4 left-1/2 transform -translate-x-1/2">
   {#each $toasts as { id, data } (id)}
     <div use:melt={$content(id)} in:fly={{ y: '-100%', duration: 300 }} out:fade={{ duration: 200 }} animate:flip={{ duration: 500 }}>
-      <div class="bg-card border-l-6 border-destructive rounded-lg shadow-2xl p-6 min-w-[400px] max-w-md mb-2">
+      <div class={`bg-card border-l-6 rounded-lg shadow-2xl p-6 min-w-[400px] max-w-md mb-2 ${data.color === 'red' ? 'border-red-500' : data.color === 'green' ? 'border-green-500' : ''}`}>
         <div class="flex items-start space-x-4">
           <div class="flex-shrink-0">
-            <div class="w-6 h-6 bg-destructive/10 rounded-full flex items-center justify-center">
-              <svg class="w-4 h-4 text-destructive" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-              </svg>
+            <div class={`w-6 h-6 rounded-full flex items-center justify-center ${data.color === 'red' ? 'bg-red-500/10' : data.color === 'green' ? 'bg-green-500/10' : ''}`}>
+              {#if data.color === 'red'}
+                <svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                </svg>
+              {:else if data.color === 'green'}
+                <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                </svg>
+              {/if}
             </div>
           </div>
           <div class="flex-1 min-w-0">

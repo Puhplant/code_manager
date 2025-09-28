@@ -8,6 +8,7 @@ use crate::services::ticket::ticket_board_service::{ITicketBoardService, TicketB
 use crate::services::ticket::ticket_editing_service::{ITicketEditingService, TicketEditingService};
 use crate::services::ticket::ticket_moving_service::{ITicketMovingService, TicketMovingService};
 use crate::services::board::board_service::{IBoardService, BoardService};
+use crate::services::board::board_column_service::{IBoardColumnService, BoardColumnService};
 
 pub struct Scope {
     container: Container,
@@ -23,6 +24,7 @@ pub struct Scope {
     ticket_editing_service: OnceLock<Arc<dyn ITicketEditingService>>,
     ticket_moving_service: OnceLock<Arc<dyn ITicketMovingService>>,
     board_service: OnceLock<Arc<dyn IBoardService>>,
+    board_column_service: OnceLock<Arc<dyn IBoardColumnService>>,
 }
 
 impl Scope {
@@ -113,6 +115,7 @@ impl Scope {
     fn create_ticket_board_service(&self) -> Arc<dyn ITicketBoardService> {
         Arc::new(TicketBoardService {
             pool: self.container.pool.clone(),
+            board_column_service: self.get_board_column_service(),
         })
     }
 
@@ -149,6 +152,16 @@ impl Scope {
     pub fn get_board_service(&self) -> Arc<dyn IBoardService> {
         self.board_service.get_or_init(|| self.create_board_service()).clone()
     }
+
+    fn create_board_column_service(&self) -> Arc<dyn IBoardColumnService> {
+        Arc::new(BoardColumnService {
+            pool: self.container.pool.clone(),
+        })
+    }
+
+    pub fn get_board_column_service(&self) -> Arc<dyn IBoardColumnService> {
+        self.board_column_service.get_or_init(|| self.create_board_column_service()).clone()
+    }
 }
 
 #[derive(Clone)]
@@ -177,6 +190,7 @@ impl Container {
             ticket_editing_service: OnceLock::new(),
             ticket_moving_service: OnceLock::new(),
             board_service: OnceLock::new(),
+            board_column_service: OnceLock::new(),
         }
     }
 }

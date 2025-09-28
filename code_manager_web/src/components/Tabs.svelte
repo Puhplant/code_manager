@@ -16,9 +16,10 @@
     onValueChange: (value: string) => string;
     class?: string;
     value: string;
+    actions?: any;
   }
 
-  const { tabs, children, defaultValue, value, onValueChange, class: className = '' }: TabsProps = $props();
+  const { tabs, children, defaultValue, value, onValueChange, class: className = '', actions }: TabsProps = $props();
 
 
 
@@ -62,6 +63,11 @@
         {/if}
       </button>
     {/each}
+    {#if actions}
+      <div class="ml-auto flex items-center px-4">
+        {@render actions?.()}
+      </div>
+    {/if}
   </div>
     <div class="grow bg-transparent text-foreground p-5">
       {@render children?.()}

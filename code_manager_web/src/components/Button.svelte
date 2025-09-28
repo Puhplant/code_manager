@@ -20,9 +20,8 @@
     class: className = '',
     children,
     ...props 
-  } = $props();
+  }: ButtonProps = $props();
 
-  let isPressed = $state(false);
   let waveData = $state<{ x: number; y: number; active: boolean }>({ x: 0, y: 0, active: false });
 
   const variantStyles: Record<string, string> = {

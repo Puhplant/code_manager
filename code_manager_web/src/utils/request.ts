@@ -163,7 +163,7 @@ async function processResponse<T>(response: Response): Promise<ApiResponse<T>> {
  */
 export async function get<T = any>(
   url: string,
-  data?: Record<string, string>,
+  data?: Record<string, any>,
   options: RequestOptions = {}
 ): Promise<ApiResponse<T>> {
   const headers = await createHeaders(options.headers);

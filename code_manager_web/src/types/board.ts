@@ -15,8 +15,13 @@ export interface MinTicketResponse {
   user_id: number;
 }
 
+export interface ColumnResponse {
+  id: number;
+  name: string;
+}
+
 export interface ColumnTickets {
-  column_id: number;
+  column: ColumnResponse;
   tickets: MinTicketResponse[];
 }
 
@@ -32,4 +37,32 @@ export interface BoardResponse {
   boards: Board[];
 }
 
-export type GetTicketsByBoardIdResponse = BoardTicketsResponse | BacklogTicketsResponse; 
+export type GetTicketsByBoardIdResponse = BoardTicketsResponse | BacklogTicketsResponse;
+
+export interface CreateTicketRequest {
+  title: string;
+  description: string;
+  column_id?: number;
+  position?: number;
+  board_id: number;
+}
+
+export interface CreateTicketResponse {
+  id: number;
+}
+
+export interface EditTicketRequest {
+  title: string;
+  description: string;
+  column_id?: number;
+}
+
+export interface GetTicketResponse {
+  id: number;
+  title: string;
+  description: string;
+  column_id: number | null;
+  position: number | null;
+  account_id: number;
+  user_id: number;
+} 
